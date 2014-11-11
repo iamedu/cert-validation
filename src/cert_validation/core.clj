@@ -53,13 +53,14 @@
                   cert-array)
     key-store))
 
+(defn build-keystore [cert-path cert-password]
+  (let [is (io/input-stream cert-path)
+        password (.toCharArray cert-password)
+        pem-stream (build-pem-stream is password)]
+    (build-keystore-from-pem-stream pem-stream)))
+
 (defn -main
   "I don't do a whole lot ... yet."
-  [& args]
-  (println "Hello, World!"))
-
-(let [is (io/input-stream "hola")
-      password (.toCharArray "password")
-      pem-stream (build-pem-stream is password)]
-  (build-keystore-from-pem-stream pem-stream))
+  [[cert-path cert-password development]]
+  (build-keystore cert-path cert-password))
 
