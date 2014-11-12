@@ -1,6 +1,7 @@
 (ns cert-validation.core
   (:require [clojure.java.io :as io])
   (:import [org.bouncycastle.jce.provider BouncyCastleProvider]
+           [com.notnoop.apns APNS]
            [org.bouncycastle.cert.jcajce JcaX509CertificateConverter]
            [org.bouncycastle.openssl.jcajce JcaPEMWriter]
            [org.bouncycastle.openssl PEMParser PEMKeyPair]
@@ -10,6 +11,8 @@
            [java.security.cert Certificate]
            [java.security KeyStore Security])
   (:gen-class))
+
+(def insecure-password "changeit")
 
 (Security/addProvider
   (BouncyCastleProvider.))
@@ -39,7 +42,7 @@
         key (.readObject pem-parser)
         x509-cert (.getCertificate cert-converter cert)
         key-pair (.getKeyPair key-converter key)
-        empty-chars (.toCharArray "")
+        empty-chars (.toCharArray insecure-password)
         cert-array (into-array Certificate [x509-cert])]
     (.load key-store nil nil)
     (.setCertificateEntry
@@ -59,8 +62,20 @@
         pem-stream (build-pem-stream is password)]
     (build-keystore-from-pem-stream pem-stream)))
 
+(defn build-service [keystore production]
+  (let [service (.. (APNS/newService)
+                    (withCert keystore insecure-password)
+                    (withAppleDestination production)
+                    (build))
+        service (doto service
+                  (.start)
+                  (.testConnection))]
+    service))
+
 (defn -main
   "I don't do a whole lot ... yet."
-  [[cert-path cert-password development]]
-  (build-keystore cert-path cert-password))
+  [cert-path cert-password production]
+  (let [keystore (build-keystore cert-path cert-password)
+        service (build-service keystore (Boolean/valueOf production))]
+    (println (str "The following devices have expired" (.getInactiveDevices service)))))
 
